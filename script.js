@@ -33,26 +33,44 @@ document.querySelector('#brand').addEventListener('click',e=>{e.preventDefault()
 // An unfinished refresh keeps the current browser tab's answers. The opening button always starts fresh.
 try{const saved=JSON.parse(sessionStorage.getItem(KEY));if(saved&&typeof saved==='object'){answers={...blank(),...saved};for(const key of ['mood','restaurants','activities','gifts']){answers[key]=Array.isArray(answers[key])?answers[key]:(answers[key]?[String(answers[key])]:[])}}}catch{}render();
 
-// Keep one visible YouTube player for the whole experience. Ask for playback
-// on page load; the browser or YouTube may require a direct user gesture.
-let anthemPlayer=null;
-let anthemReady=false;
+// One audio element lives outside the planner so screen changes never restart it.
+const birthdayAudio=document.querySelector('#birthday-audio');
+const musicToggle=document.querySelector('#music-toggle');
 let musicPausedByVisitor=false;
-function startAnthem(){
-  if(anthemReady&&!musicPausedByVisitor)anthemPlayer.playVideo();
+birthdayAudio.volume=0.55;
+function updateMusicControl(){
+  const playing=!birthdayAudio.paused;
+  musicToggle.textContent=playing?'♫ Pause music':'♫ Play music';
+  musicToggle.setAttribute('aria-label',playing?'Pause birthday music':'Play birthday music');
+  musicToggle.setAttribute('aria-pressed',String(playing));
 }
-window.onYouTubeIframeAPIReady=function(){
-  anthemPlayer=new YT.Player('anthem-player',{events:{
-    onReady:function(){anthemReady=true;startAnthem()},
-    onStateChange:function(event){
-      if(event.data===YT.PlayerState.PAUSED)musicPausedByVisitor=true;
-      if(event.data===YT.PlayerState.PLAYING){musicPausedByVisitor=false;document.querySelector('#music-status').textContent='Your soundtrack stays with you between chapters.'}
-    },
-    onAutoplayBlocked:function(){document.querySelector('#music-status').textContent='Your browser needs one tap on ▶ to start the music.'},
-    onError:function(){document.querySelector('#music-status').textContent='YouTube could not play this video here. You can still enjoy the birthday planner.'}
-  }});
-};
-const youtubeApi=document.createElement('script');
-youtubeApi.src='https://www.youtube.com/iframe_api';
-youtubeApi.async=true;
-document.head.append(youtubeApi);
+function startAnthem(){
+  if(musicPausedByVisitor||!birthdayAudio.paused)return;
+  // Autoplay is best effort. A rejected request is retried from a real user tap.
+  birthdayAudio.play().catch(()=>updateMusicControl());
+}
+function startFromInteraction(event){
+  if(event.target.closest?.('#music-toggle'))return;
+  if(event.type==='keydown'&&(event.ctrlKey||event.metaKey||event.altKey))return;
+  startAnthem();
+}
+function removeStartupListeners(){
+  document.removeEventListener('pointerdown',startFromInteraction);
+  document.removeEventListener('keydown',startFromInteraction);
+}
+birthdayAudio.addEventListener('playing',()=>{updateMusicControl();removeStartupListeners()});
+birthdayAudio.addEventListener('pause',updateMusicControl);
+birthdayAudio.addEventListener('error',()=>{
+  musicToggle.textContent='Music unavailable';
+  musicToggle.setAttribute('aria-label','The music file could not be loaded');
+  musicToggle.setAttribute('aria-pressed','false');
+  musicToggle.disabled=true;
+  removeStartupListeners();
+});
+musicToggle.addEventListener('click',()=>{
+  if(birthdayAudio.paused){musicPausedByVisitor=false;startAnthem()}
+  else{musicPausedByVisitor=true;birthdayAudio.pause()}
+});
+document.addEventListener('pointerdown',startFromInteraction);
+document.addEventListener('keydown',startFromInteraction);
+startAnthem();
