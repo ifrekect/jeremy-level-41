@@ -24,7 +24,7 @@ if(step===3)content=shell('The Day Is Yours',Object.entries(activityGroups).map(
 if(step===4)content=shell('What Would Make You Smile? 👑',buttons(gifts,'gifts')+`<p class="note" id="gift-count">${answers.gifts.length} selected</p>`+field('giftNotes','If there’s something specific you want, tell Bae here…','A hint never hurts',true)+nav(),'Choose all the gifts you like. A little direction keeps the mission on track.');
 if(step===5)content=shell('The Perfect Detail',field('wish','One thing that would make this birthday perfect…','Say what’s on your mind',true)+nav('Review my plan'),'One last wish. Big or small, Bae wants to know.');
 if(step===6)content=shell('Your Birthday, Your Way',`<div class="review">${rows.map(([label,key])=>`<article><strong>${label}</strong><span>${esc(readable(answers[key]))}</span></article>`).join('')}</div><div id="submit-error" role="alert"></div><div class="actions"><button type="button" class="back" data-go="5">← Back</button><button type="button" class="secondary" data-go="1">Edit choices</button><button type="button" class="primary" id="submit">Submit My Birthday Plan →</button></div>`,'Look it over. You can still make changes before sending it.');
-if(step===7)content=`<section class="panel final"><div class="confetti-wrap" aria-hidden="true">${Array.from({length:32},(_,i)=>`<i class="confetti" style="--x:${(i*73)%100}%;--c:${i%3?'#d8ad75':'#af5360'};--d:${4+i%5}s;--delay:-${i%7}s"></i>`).join('')}</div><div class="eyebrow">THE NEXT CHAPTER BEGINS</div><div class="hero-number" aria-hidden="true">41</div><h2>Level 41: Activated</h2><p>Jeremy, you are loved, appreciated, and everything God designed you to be. Continue to thrive, continue to grow, and continue being exactly who you are.</p><p class="verse"><strong>Philippians 4:13</strong><br>“You can do all things through Christ who strengthens you.”</p><p>Now relax. Bae has the rest handled. 😏❤️</p></section>`;
+if(step===7)content=`<section class="panel final"><div class="confetti-wrap" aria-hidden="true">${Array.from({length:32},(_,i)=>`<i class="confetti" style="--x:${(i*73)%100}%;--c:${i%3?'#d8ad75':'#c62a16'};--d:${4+i%5}s;--delay:-${i%7}s"></i>`).join('')}</div><div class="eyebrow">THE NEXT CHAPTER BEGINS</div><div class="hero-number" aria-hidden="true">41</div><h2>Level 41: Activated</h2><p>Jeremy, you are loved, appreciated, and everything God designed you to be. Continue to thrive, continue to grow, and continue being exactly who you are.</p><p class="verse"><strong>Philippians 4:13</strong><br>“You can do all things through Christ who strengthens you.”</p><p>Now relax. Bae has the rest handled. 😏❤️</p></section>`;
 app.innerHTML=content;window.scrollTo({top:0,behavior:'instant'});}
 function go(n){if(busy||n<0||n>7)return;step=n;render()}
 app.addEventListener('input',e=>{const field=e.target.dataset.field;if(field){answers[field]=e.target.value;persist()}});
@@ -33,32 +33,26 @@ document.querySelector('#brand').addEventListener('click',e=>{e.preventDefault()
 // An unfinished refresh keeps the current browser tab's answers. The opening button always starts fresh.
 try{const saved=JSON.parse(sessionStorage.getItem(KEY));if(saved&&typeof saved==='object'){answers={...blank(),...saved};for(const key of ['mood','restaurants','activities','gifts']){answers[key]=Array.isArray(answers[key])?answers[key]:(answers[key]?[String(answers[key])]:[])}}}catch{}render();
 
-// Keep the YouTube iframe outside the changing planner screens so playback continues.
-const anthemButton=document.querySelector('#anthem-toggle');
-const musicDock=document.querySelector('#music-dock');
-let musicDisabled=false;
+// Keep one visible YouTube player for the whole experience. Ask for playback
+// on page load; the browser or YouTube may require a direct user gesture.
+let anthemPlayer=null;
+let anthemReady=false;
+let musicPausedByVisitor=false;
 function startAnthem(){
-  if(musicDisabled||document.querySelector('#anthem-player'))return;
-  const player=document.createElement('iframe');
-  player.id='anthem-player';
-  player.title='A Milli — Lil Wayne, YouTube music player';
-  player.src='https://www.youtube.com/embed/vyIOsgSTxSM?autoplay=1&playsinline=1&loop=1&playlist=vyIOsgSTxSM&rel=0';
-  player.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
-  player.referrerPolicy='strict-origin-when-cross-origin';
-  player.allowFullscreen=true;
-  document.querySelector('#player-slot').append(player);
-  musicDock.hidden=false;
-  document.body.classList.add('music-on');
-  anthemButton.textContent='♫ Turn music off';
-  anthemButton.setAttribute('aria-pressed','true');
+  if(anthemReady&&!musicPausedByVisitor)anthemPlayer.playVideo();
 }
-function stopAnthem(){
-  document.querySelector('#anthem-player')?.remove();
-  musicDock.hidden=true;
-  document.body.classList.remove('music-on');
-  musicDisabled=true;
-  anthemButton.textContent='♫ Play birthday anthem';
-  anthemButton.setAttribute('aria-pressed','false');
-}
-anthemButton.addEventListener('click',()=>{if(document.querySelector('#anthem-player'))stopAnthem();else{musicDisabled=false;startAnthem()}});
-document.querySelector('#music-close').addEventListener('click',stopAnthem);
+window.onYouTubeIframeAPIReady=function(){
+  anthemPlayer=new YT.Player('anthem-player',{events:{
+    onReady:function(){anthemReady=true;startAnthem()},
+    onStateChange:function(event){
+      if(event.data===YT.PlayerState.PAUSED)musicPausedByVisitor=true;
+      if(event.data===YT.PlayerState.PLAYING){musicPausedByVisitor=false;document.querySelector('#music-status').textContent='Your soundtrack stays with you between chapters.'}
+    },
+    onAutoplayBlocked:function(){document.querySelector('#music-status').textContent='Your browser needs one tap on ▶ to start the music.'},
+    onError:function(){document.querySelector('#music-status').textContent='YouTube could not play this video here. You can still enjoy the birthday planner.'}
+  }});
+};
+const youtubeApi=document.createElement('script');
+youtubeApi.src='https://www.youtube.com/iframe_api';
+youtubeApi.async=true;
+document.head.append(youtubeApi);
